@@ -124,20 +124,23 @@ async function getIssue(issue_number, res) {
 
     // tokenize the issue to find metadata required to locate the correct bundle
     const tokens = issue.body.split('|');
-    let sessionId = +tokens[8].trim();
-    let timestamp = +tokens[11].trim()
+    let sessionId = +tokens[11].trim();
+    let timestamp = +tokens[14].trim()
 
     // filter the available bundles based on timestamp of the bug
-    const bundle = bundles.filter(bundle => bundle.Start <= timestamp && bundle.Stop >= timestamp);
+    console.log(`Filtering ${bundles.length} bundles that for time ${timestamp}`)
+    const bundle = bundles.filter(bundle => (bundle.Start * 1000) <= timestamp && (bundle.Stop * 1000) >= timestamp);
 
     // the filter returns an array but there shoud be only one matching bundle
     if (bundle.length === 1) {
       // get the FS export id
       const { Id: bundleId } = bundle[0];
+      console.log(`Found bundle with ID ${bundleId}`);
 
       // retrieve the actual events from FS
       let events = await request({
         url: `https://export.fullstory.com/api/v1/export/get?id=${bundleId}`,
+        gzip: true,
         headers: {
           'Authorization': `Basic ${fsApiKey}`
         },
@@ -152,6 +155,7 @@ async function getIssue(issue_number, res) {
       // send back the events
       res.json(events);
     } else {
+      console.error('No matching bundle found')
       res.json([]);
     }
   } catch (err) {
