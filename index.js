@@ -29,7 +29,7 @@ app.set('port', process.env.PORT || 3000);
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-app.use('public', express.static(`${__dirname}/public`));
+app.use('/public', express.static(`${__dirname}/public`));
 
 app.get('favicon.png', (req, res) => {
   res.sendFile(`${__dirname}/favicon.png`);
@@ -61,26 +61,32 @@ app.listen(app.get('port'), () => {
  * @param obj An Error object that has a `error` property
  */
 function createIssue({ content, sessionUrl, replayUrl }, res) {
-  const sessionId = sessionUrl.substring(sessionUrl.lastIndexOf('/') + 1);
+  try {
+    const [userId, sessionId, otherId] = decodeURIComponent(sessionUrl.substring(sessionUrl.lastIndexOf('/') + 1)).split(':');
 
-  if (!replayUrl) {
-    replayUrl = 'http://localhost:4200'
+    if (!replayUrl) {
+      replayUrl = 'http://localhost:4200'
+    }
+
+    const body = `
+  | | |
+  | ---- | ---- |
+  | User | [${userId}](https://app.fullstory.com/ui/MKDN5/segments/everyone/people/0/user/${userId}) |
+  | Session ID | ${sessionId} |
+  | Timestamp | ${ (new Date()).getTime()}|
+  | FullStory Replay | [View Replay](${sessionUrl})  |`;
+
+    octokit.issues.create({
+      owner: 'van-fs',
+      repo: 'calc-app',
+      title: `${content}`,
+      body,
+      labels: ['fullstory']
+    }).then(({ data }) => res.json(data));
+  } catch (err) {
+    console.error(err);
+    res.sendStatus(500);
   }
-
-  const body = `
-| Session ID | ${sessionId} |
-| Timestamp | ${ (new Date()).getTime()}|
-| FullStory Replay | [View Replay](${sessionUrl})  |
-| Developer Replay  | [Reproduce](${replayUrl}#${sessionId})  |
-`;
-
-  octokit.issues.create({
-    owner: 'van-fs',
-    repo: 'calc-app',
-    title: `${content}`,
-    body,
-    labels: ['fullstory']
-  }).then(({ data }) => res.json(data));
 }
 
 async function getIssue(issue_number, res) {
@@ -101,13 +107,15 @@ async function getIssue(issue_number, res) {
       json: true
     });
 
-    let timestamp = issue.body.split('|')[5];
+    const tokens = issue.body.split('|');
+    let sessionId = +tokens[8].trim();
+    let timestamp = +tokens[11].trim()
 
     const bundle = bundles.filter(bundle => bundle.Start <= timestamp && bundle.Stop >= timestamp);
 
     if (bundle.length === 1) {
       const { Id: bundleId } = bundle[0];
-      const events = await request({
+      let events = await request({
         url: `https://export.fullstory.com/api/v1/export/get?id=${bundleId}`,
         headers: {
           'Authorization': `Basic ${fsApiKey}`
@@ -115,12 +123,14 @@ async function getIssue(issue_number, res) {
         json: true,
       });
     
+      events = events.filter(event => event.SessionId === sessionId);
+      
       res.json(events);
     } else {
-      res.send(401);
+      res.json([]);
     }
   } catch (err) {
     console.error(err);
-    res.send(500);
+    res.sendStatus(500);
   }
 }
