@@ -86,39 +86,41 @@ function createIssue({ content, sessionUrl, replayUrl }, res) {
 async function getIssue(issue_number, res) {
   console.log(`Fetching issue ${issue_number}`);
 
-  const { data: issue } = await octokit.issues.get({
-    owner: 'van-fs',
-    repo: 'calc-app',
-    issue_number
-  });
+  try {
+    const { data: issue } = await octokit.issues.get({
+      owner: 'van-fs',
+      repo: 'calc-app',
+      issue_number
+    });
 
-  console.log(`Found issue ${issue.body}`);
-
-  const { exports: bundles} = await request({
-    url: 'https://export.fullstory.com/api/v1/export/list',
-    headers: {
-      'Authorization': `Basic ${fsApiKey}`
-    },
-    json: true
-  });
-
-
-  const timestamp = 1561041400;
-
-  const bundle = bundles.filter(bundle => bundle.Start <= timestamp && bundle.Stop >= timestamp);
-
-  if (bundle.length === 1) {
-    const { Id: bundleId } = bundle[0];
-    const events = await request({
-      url: `https://export.fullstory.com/api/v1/export/get?id=${bundleId}`,
+    const { exports: bundles} = await request({
+      url: 'https://export.fullstory.com/api/v1/export/list',
       headers: {
         'Authorization': `Basic ${fsApiKey}`
       },
-      json: true,
+      json: true
     });
-  
-    res.json(events);
-  } else {
-    res.send(401);
+
+    let timestamp = issue.body.split('|')[5];
+
+    const bundle = bundles.filter(bundle => bundle.Start <= timestamp && bundle.Stop >= timestamp);
+
+    if (bundle.length === 1) {
+      const { Id: bundleId } = bundle[0];
+      const events = await request({
+        url: `https://export.fullstory.com/api/v1/export/get?id=${bundleId}`,
+        headers: {
+          'Authorization': `Basic ${fsApiKey}`
+        },
+        json: true,
+      });
+    
+      res.json(events);
+    } else {
+      res.send(401);
+    }
+  } catch (err) {
+    console.error(err);
+    res.send(500);
   }
 }
