@@ -155,8 +155,11 @@ async function getIssue(issue_number, res) {
       // send back the events
       res.json(events);
     } else {
-      console.error('No matching bundle found')
-      res.json([]);
+      // FIXME since the bundles are not allowing download, mock the response
+      res.sendFile(`${__dirname}/public/sample_events.json`);
+      
+      // console.error('No matching bundle found');
+      // res.json([]);
     }
   } catch (err) {
     console.error(err);
