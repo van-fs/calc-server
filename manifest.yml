@@ -1,0 +1,5 @@
+---
+applications:
+ - name: fs-calc
+   instances: 1
+   memory: 128M
