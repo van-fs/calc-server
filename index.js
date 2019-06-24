@@ -57,8 +57,9 @@ app.listen(app.get('port'), () => {
 });
 
 /**
- * Creates an issue on GitHub.
- * @param obj An Error object that has a `error` property
+ * Creates an issue in GitHub.
+ * @param {any} obj An object containing issue metadata. 
+ * @param {Response} res The response used to send the issue back to the caller
  */
 function createIssue({ content, sessionUrl, replayUrl }, res) {
   try {
@@ -89,6 +90,11 @@ function createIssue({ content, sessionUrl, replayUrl }, res) {
   }
 }
 
+/**
+ * Retreives a list of FullStory events for a given GitHub issue.
+ * @param {} issue_number The GitHub issue id
+ * @param {*} res The response used to send the events back to the caller
+ */
 async function getIssue(issue_number, res) {
   console.log(`Fetching issue ${issue_number}`);
 
@@ -124,7 +130,9 @@ async function getIssue(issue_number, res) {
       });
     
       events = events.filter(event => event.SessionId === sessionId);
-      
+
+      // TODO a more interesting hueristic is to then get all events from the last page load up to the timestamp
+
       res.json(events);
     } else {
       res.json([]);
