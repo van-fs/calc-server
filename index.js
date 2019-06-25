@@ -44,6 +44,10 @@ app.post('/issues', async (req, res) => {
   createIssue(req.body, res);
 });
 
+app.get('/issues', async (req, res) => {
+  getIssues(res);
+});
+
 app.get('/issues/:id', async (req, res) => {
   const { id } = req.params;
   getIssue(id, res);
@@ -98,6 +102,21 @@ function createIssue({ content, sessionUrl, replayUrl }, res) {
 }
 
 /**
+ * Gets all open issues tagged 'fullstory'.
+ * @param {*} res The response used to send the issues back to the caller
+ */
+async function getIssues(res) {
+  const { data: issues } = await octokit.issues.listForRepo({
+    owner: 'van-fs',
+    repo: 'calc-app',
+    state: 'open',
+    labels: 'fullstory'
+  });
+
+  res.json(issues);
+}
+
+/**
  * Retreives a list of FullStory events for a given GitHub issue.
  * @param {} issue_number The GitHub issue id
  * @param {*} res The response used to send the events back to the caller
@@ -113,19 +132,22 @@ async function getIssue(issue_number, res) {
       issue_number
     });
 
+    // tokenize the issue to find metadata required to locate the correct bundle
+    const tokens = issue.body.split('|');
+    let sessionId = +tokens[11].trim();
+    let timestamp = +tokens[14].trim();
+
+    const start = Math.round(timestamp/1000 - 3600); // back up one hour to get the bundle that likely contains the events
+    console.log(`Getting all bundles after time ${start}`);
+
     // retrieve the list of available bundles in FullStory
     const { exports: bundles} = await request({
-      url: 'https://export.fullstory.com/api/v1/export/list',
+      url: `https://export.fullstory.com/api/v1/export/list?start=${start}`,
       headers: {
         'Authorization': `Basic ${fsApiKey}`
       },
       json: true
     });
-
-    // tokenize the issue to find metadata required to locate the correct bundle
-    const tokens = issue.body.split('|');
-    let sessionId = +tokens[11].trim();
-    let timestamp = +tokens[14].trim()
 
     // filter the available bundles based on timestamp of the bug
     console.log(`Filtering ${bundles.length} bundles that for time ${timestamp}`)
@@ -155,11 +177,8 @@ async function getIssue(issue_number, res) {
       // send back the events
       res.json(events);
     } else {
-      // FIXME since the bundles are not allowing download, mock the response
-      res.sendFile(`${__dirname}/public/sample_events.json`);
-      
-      // console.error('No matching bundle found');
-      // res.json([]);
+      console.error('No matching bundle found');
+      res.json([]);
     }
   } catch (err) {
     console.error(err);
